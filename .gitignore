@@ -140,6 +140,8 @@ celerybeat.pid
 .venv
 env/
 venv/
+.venv/
+jvenv/
 ENV/
 env.bak/
 venv.bak/
@@ -205,3 +207,10 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+.*.swp
+*.pyc
+checkpoints/*.pth.tar
+checkpoints/*.pth.tar
+checkpoints/*.pth
+outputs/
+datasets/sample_video/
