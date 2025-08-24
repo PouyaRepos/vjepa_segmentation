@@ -1,0 +1,29 @@
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "vjepa-seg"
+version = "0.1.0"
+description = "V-JEPA segmentation head (supervised baseline)."
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+  "tqdm",
+  "numpy",
+  "opencv-python",
+  "pillow",
+  "pyyaml",
+  "scikit-image",
+  "torch>=2",
+"torchvision",
+"submitit,
+"braceexpand",
+"webdataset",
+"timm",
+"pandas",
+"einops",
+"beartype",
+"pytest"
+]
