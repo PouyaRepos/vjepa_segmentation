@@ -18,7 +18,7 @@ dependencies = [
   "scikit-image",
   "torch>=2",
 "torchvision",
-"submitit,
+"submitit",
 "braceexpand",
 "webdataset",
 "timm",
