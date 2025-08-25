@@ -15,7 +15,8 @@ def main():
     ap.add_argument("--config", required=True)
     ap.add_argument("--dummy_backbone", type=int, default=1)
     ap.add_argument("--ckpt", default="ckpts/head_linear_fpn_best.pt")
-    ap.add_argument("--vjepa_ckpt", type=str, default=None)
+    ap.add_argument("--vjepa_ckpt", type=str, default=None, help="Path to V-JEPA(2) checkpoint .pt/.pth")
+
 
     args = ap.parse_args()
 
@@ -39,6 +40,7 @@ def main():
         out_dim=cfg.model.get("backbone_out_dim", 1024),
         vjepa_ckpt=args.vjepa_ckpt,
     ).to(device)
+
     model_h = LinearFPNHead(
         in_dim=cfg.model.get("backbone_out_dim", 1024),
         fpn_dim=cfg.model.get("fpn_dim", 256),

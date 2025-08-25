@@ -82,7 +82,8 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--config", required=True)
     ap.add_argument("--dummy_backbone", type=int, default=0)
-    ap.add_argument("--vjepa_ckpt", type=str, default=None)
+    ap.add_argument("--vjepa_ckpt", type=str, default=None, help="Path to V-JEPA(2) checkpoint .pt/.pth")
+
 
     args = ap.parse_args()
 
@@ -122,18 +123,13 @@ def main():
     #         print(str(e))
     #         print("Falling back to dummy backbone. Use --dummy_backbone 1 for CI/quickstart.")
     #         model_b = VJEPAFeatureBackbone(impl="dummy", out_dim=cfg.model.get("backbone_out_dim", 1024)).to(device)
-    
+
+    # models
     impl = "dummy" if args.dummy_backbone else "vjepa"
     model_b = VJEPAFeatureBackbone(
         impl=impl,
         out_dim=cfg.model.get("backbone_out_dim", 1024),
-        vjepa_ckpt=args.vjepa_ckpt,  # <— NEW: pass ckpt
-    ).to(device)
-
-    model_h = LinearFPNHead(
-        in_dim=cfg.model.get("backbone_out_dim", 1024),
-        fpn_dim=cfg.model.get("fpn_dim", 256),
-        num_classes=num_classes,
+        vjepa_ckpt=args.vjepa_ckpt,   # <— pass the CLI arg here
     ).to(device)
 
     model_h = LinearFPNHead(

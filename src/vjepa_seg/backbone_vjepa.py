@@ -1,9 +1,10 @@
+# src/vjepa_seg/backbone_vjepa.py
 from __future__ import annotations
 import torch
 import torch.nn as nn
 
 class DummyFrozenBackbone(nn.Module):
-    """Stand-in: outputs B x C x (H/16) x (W/16)."""
+    """Stand-in: B x C x (H/16) x (W/16)."""
     def __init__(self, out_dim: int = 1024):
         super().__init__()
         self.conv = nn.Conv2d(3, out_dim, kernel_size=16, stride=16, padding=0, bias=False)
@@ -15,61 +16,98 @@ class DummyFrozenBackbone(nn.Module):
 class VJEPAFeatureBackbone(nn.Module):
     """
     impl='dummy' -> conv stand-in.
-    impl='vjepa' -> import V-JEPA ViT and expose B x C x H/16 x W/16 features.
+    impl='vjepa' -> fetch V-JEPA2 ViT via torch.hub (code only), load your local checkpoint,
+                    return B x C x (H/16) x (W/16) features.
     """
-    def __init__(self, impl: str = "dummy", out_dim: int = 1024, vjepa_ckpt: str | None = None,
-                 patch_size: int = 16, expect_frames: int = 1):
+    def __init__(self, impl: str = "dummy", out_dim: int = 1024,
+                 vjepa_ckpt: str | None = None, patch_size: int = 16, expect_frames: int = 1):
         super().__init__()
         self.patch_size = patch_size
         self.impl = impl
-        self.vjepa_ckpt = vjepa_ckpt
 
         if impl == "dummy":
             self.backbone = DummyFrozenBackbone(out_dim)
         elif impl == "vjepa":
-            # Try to import from vjepa/vjepa2 repo (make sure PYTHONPATH points to the repo root)
+            if not vjepa_ckpt:
+                raise ValueError("When impl='vjepa', pass --vjepa_ckpt /abs/path/to/checkpoint.pt")
+
+            # 1) Try local import; else fall back to torch.hub (code only, no weights).
+            vt_class = None
             try:
-                from src.models.vision_transformer import VisionTransformer  # vjepa2
+                from src.models.vision_transformer import VisionTransformer  # type: ignore[import-not-found]
                 vt_class = VisionTransformer
             except Exception:
-                try:
-                    # some repos name it vit.py
-                    from src.models.vit import VisionTransformer as VT2
-                    vt_class = VT2
-                except Exception as e:
-                    raise ImportError(
-                        "Could not import VisionTransformer from your V-JEPA repo. "
-                        "Ensure PYTHONPATH includes the repo root (containing src/models/...)."
-                    ) from e
+                vt_class = None
 
-            if not vjepa_ckpt:
-                raise ValueError("When impl='vjepa', you must pass --vjepa_ckpt /abs/path/to/ckpt.pth")
+            if vt_class is None:
+                obj = torch.hub.load(
+                    "facebookresearch/vjepa2",
+                    "vjepa2_vit_large",   # ViT-L/16 entry; hub may return a module OR a tuple/dict
+                    pretrained=False,
+                    trust_repo=True,
+                )
 
-            # Build a ViT-L-ish model. Adjust dims if your ckpt differs.
-            self.vit = vt_class(
-                img_size=224,           # not strictly used for reshape
-                patch_size=patch_size,
-                num_frames=max(1, expect_frames),
-                tubelet_size=1,
-                in_chans=3,
-                embed_dim=out_dim,      # 1024 typical for ViT-L
-                depth=24,
-                num_heads=16,
-                mlp_ratio=4.0,
-                qkv_bias=True,
-                drop_rate=0.0,
-                attn_drop_rate=0.0,
-                norm_layer=nn.LayerNorm,
-            )
+                # Coerce whatever Hub returned into an nn.Module
+                def coerce_to_module(x):
+                    if isinstance(x, nn.Module):
+                        return x
+                    if isinstance(x, (tuple, list)):
+                        for it in x:
+                            if isinstance(it, nn.Module):
+                                return it
+                    if isinstance(x, dict):
+                        for key in ["model", "encoder", "backbone", "net", "vit", "module"]:
+                            v = x.get(key)
+                            if isinstance(v, nn.Module):
+                                return v
+                        # last resort: first nn.Module value
+                        for v in x.values():
+                            if isinstance(v, nn.Module):
+                                return v
+                    raise TypeError(f"Hub returned unsupported type: {type(x)}")
 
+                self.vit = coerce_to_module(obj)
+            else:
+                # Build a ViT-L/16-ish skeleton if local class exists
+                self.vit = vt_class(
+                    img_size=224, patch_size=patch_size,
+                    num_frames=max(1, expect_frames), tubelet_size=1,
+                    in_chans=3, embed_dim=out_dim, depth=24, num_heads=16, mlp_ratio=4.0,
+                    qkv_bias=True, drop_rate=0.0, attn_drop_rate=0.0, norm_layer=nn.LayerNorm,
+                )
+
+            # 2) Load your checkpoint with tolerant key-matching
             state = torch.load(vjepa_ckpt, map_location="cpu")
-            if isinstance(state, dict) and "model" in state:
-                state = state["model"]
-            self.vit.load_state_dict(state, strict=False)
+            # unwrap common wrappers
+            for k in ("state_dict", "model"):
+                if isinstance(state, dict) and k in state and isinstance(state[k], dict):
+                    state = state[k]
+
+            # strip common prefixes & keep only matching shapes
+            msd = self.vit.state_dict()
+            def strip_prefix(name: str) -> str:
+                for pref in ("module.", "model.", "encoder.", "backbone.", "net."):
+                    if name.startswith(pref):
+                        name = name[len(pref):]
+                return name
+
+            filtered = {}
+            for k, v in state.items():
+                k2 = strip_prefix(k)
+                if k2 in msd and msd[k2].shape == v.shape:
+                    filtered[k2] = v
+
+            missing, unexpected = self.vit.load_state_dict(filtered, strict=False)
+            if unexpected:
+                print(f"[VJEPA] Ignoring {len(unexpected)} unexpected keys from checkpoint.")
+            if missing:
+                print(f"[VJEPA] {len(missing)} model keys missing in checkpoint (ok if heads differ).")
+
             self.vit.eval()
             for p in self.vit.parameters():
                 p.requires_grad = False
             self.backbone = self.vit
+
         else:
             raise ValueError(f"Unknown backbone impl: {impl}")
 
@@ -84,26 +122,44 @@ class VJEPAFeatureBackbone(nn.Module):
         B, _, H, W = x.shape
         Ht, Wt = H // self.patch_size, W // self.patch_size
 
-        # If JEPA expects (B, C, T, H, W), tile a single frame across T
-        num_frames = getattr(self.backbone, "num_frames", 1)
+        # If the model expects video dims (B,C,T,H,W), tile single frame across T
+        num_frames = int(getattr(self.backbone, "num_frames", 1))
         x_in = x.unsqueeze(2).repeat(1, 1, num_frames, 1, 1) if num_frames > 1 else x
 
-        # Try common forward methods
-        if hasattr(self.backbone, "forward_features"):
-            tokens = self.backbone.forward_features(x_in)   # B x N x C (often) or B x C x h x w
-        else:
-            tokens = self.backbone(x_in)
+        # Prefer forward_features if present
+        tokens = self.backbone.forward_features(x_in) if hasattr(self.backbone, "forward_features") else self.backbone(x_in)
 
-        if tokens.dim() == 3:  # B x N x C
+        # Case A: tokens are B x N x C (flattened [T * Ht * Wt] [+ CLS])
+        if tokens.dim() == 3:
             B, N, C = tokens.shape
-            # drop CLS if present
-            if N == (Ht * Wt + 1):
+            n_per_frame = Ht * Wt
+
+            # Drop a CLS token if present (either once or per-frame)
+            # If one CLS total: N % n_per_frame == 1
+            # If CLS per-frame: (N % n_per_frame) == T  (rare); we’ll try the simple case first.
+            if N % n_per_frame == 1:
                 tokens = tokens[:, 1:, :]
                 N -= 1
-            tokens = tokens.transpose(1, 2).contiguous()  # B x C x N
-            feats = tokens.view(B, C, Ht, Wt)
+
+            # Infer T and validate
+            if N % n_per_frame != 0:
+                raise RuntimeError(f"Unexpected token length N={N}, not divisible by Ht*Wt={n_per_frame}")
+
+            T = max(1, N // n_per_frame)
+
+            # Reshape to (B, T, Ht*Wt, C), mean over time, then to grid
+            tokens = tokens.view(B, T, n_per_frame, C)        # B x T x (Ht*Wt) x C
+            tokens = tokens.mean(dim=1)                       # B x (Ht*Wt) x C
+            feats = tokens.transpose(1, 2).contiguous().view(B, C, Ht, Wt)  # B x C x Ht x Wt
             return feats
-        elif tokens.dim() == 4:  # already B x C x h x w
-            return tokens
-        else:
-            raise RuntimeError(f"Unexpected V-JEPA feature shape: {tokens.shape}")
+
+        # Case B: tokens already spatial
+        if tokens.dim() == 4:
+            return tokens  # assume B x C x Ht x Wt
+
+        # Case C: tokens are B x C x T x Ht x Wt -> mean over time
+        if tokens.dim() == 5:
+            # B x C x T x h x w -> B x C x h x w
+            return tokens.mean(dim=2)
+
+        raise RuntimeError(f"Unexpected V-JEPA feature shape: {tokens.shape}")
