@@ -214,3 +214,36 @@ checkpoints/*.pth.tar
 checkpoints/*.pth
 outputs/
 datasets/sample_video/
+
+cat >> .gitignore <<'EOF'
+# OS / editor
+.DS_Store
+.vscode/
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# Data & outputs
+data/*
+!data/.gitkeep
+ckpts/*
+!ckpts/.gitkeep
+outputs/*
+!outputs/.gitkeep
+logs/*
+!logs/.gitkeep
+
+# Large binaries
+*.pt
+*.pth
+*.mp4
+*.mov
+*.avi
+*.mkv
+*.zip
+*.tar.gz
+*.npz
+*.npy
+EOF

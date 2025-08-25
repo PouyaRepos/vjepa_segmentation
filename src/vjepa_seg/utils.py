@@ -33,15 +33,13 @@ class Cfg:
 
 def load_cfg(path: str) -> Cfg:
     with open(path, "r") as f:
-        cfg = yaml.safe_load(f)
+        content = f.read()
+        print("YAML Content:\n", content)
+        cfg = yaml.safe_load(content)
     return Cfg(**cfg)
-
-
-
 
 def auto_device() -> torch.device:
     return torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
 
 
 
@@ -49,6 +47,15 @@ class AvgMeter:
     def __init__(self):
         self.n = 0
         self.s = 0.0
+
+    def update(self, val: float, k: int = 1):
+        # accumulate sum and count
+        self.s += float(val) * k
+        self.n += int(k)
+
+    @property
+    def avg(self) -> float:
+        return self.s / max(1, self.n)
 
 
 def update(self, val: float, k: int = 1):

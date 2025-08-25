@@ -17,11 +17,13 @@ def ema_update(prev, cur, alpha):
     return alpha * cur + (1 - alpha) * prev
 
 
-def run_image(cfg, image_path, out_path, use_dummy, ckpt_path):
+def run_image(cfg, image_path, out_path, use_dummy, ckpt_path, vjepa_ckpt):
     device = auto_device()
     impl = "dummy" if use_dummy else "vjepa"
 
-    model_b = VJEPAFeatureBackbone(impl=impl, out_dim=cfg.model.get("backbone_out_dim", 1024)).to(device)
+    model_b = VJEPAFeatureBackbone(impl=impl, 
+                                   out_dim=cfg.model.get("backbone_out_dim", 1024),
+                                   vjepa_ckpt=vjepa_ckpt,).to(device)
     model_h = LinearFPNHead(
         in_dim=cfg.model.get("backbone_out_dim", 1024),
         fpn_dim=cfg.model.get("fpn_dim", 256),
@@ -46,10 +48,11 @@ def run_image(cfg, image_path, out_path, use_dummy, ckpt_path):
     print(f"wrote {out_path}")
 
 
-def run_video(cfg, video_path, out_path, use_dummy, ckpt_path, ema_alpha=0.0):
+def run_video(cfg, video_path, out_path, use_dummy, ckpt_path, vjepa_ckpt, ema_alpha=0.0):
     device = auto_device()
     impl = "dummy" if use_dummy else "vjepa"
-    model_b = VJEPAFeatureBackbone(impl=impl, out_dim=cfg.model.get("backbone_out_dim", 1024)).to(device)
+    model_b = VJEPAFeatureBackbone(impl=impl,
+                                   out_dim=cfg.model.get("backbone_out_dim", 1024), vjepa_ckpt= vjepa_ckpt).to(device)
     model_h = LinearFPNHead(
         in_dim=cfg.model.get("backbone_out_dim", 1024),
         fpn_dim=cfg.model.get("fpn_dim", 256),
@@ -102,14 +105,16 @@ def main():
     ap.add_argument("--ckpt", default="ckpts/head_linear_fpn_best.pt")
     ap.add_argument("--ema", type=float, default=0.0)
     ap.add_argument("--dummy_backbone", type=int, default=1)
+    ap.add_argument("--vjepa_ckpt", type=str, default=None)
+
     args = ap.parse_args()
 
     cfg = load_cfg(args.config)
 
     if args.image:
-        run_image(cfg, args.image, args.out, bool(args.dummy_backbone), args.ckpt)
+        run_image(cfg, args.image, args.out, bool(args.dummy_backbone), args.ckpt, args.vjepa_ckpt)
     elif args.video:
-        run_video(cfg, args.video, args.out, bool(args.dummy_backbone), args.ckpt, args.ema)
+        run_video(cfg, args.video, args.out, bool(args.dummy_backbone), args.ckpt, args.vjepa_ckpt, args.ema)
     else:
         raise SystemExit("Provide --image or --video")
 

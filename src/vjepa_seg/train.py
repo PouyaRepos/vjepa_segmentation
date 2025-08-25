@@ -82,6 +82,8 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--config", required=True)
     ap.add_argument("--dummy_backbone", type=int, default=0)
+    ap.add_argument("--vjepa_ckpt", type=str, default=None)
+
     args = ap.parse_args()
 
     cfg = load_cfg(args.config)
@@ -110,16 +112,29 @@ def main():
     val_loader = DataLoader(val_set, batch_size=cfg.train.get("batch_size", 8), shuffle=False, num_workers=4)
 
     # models
+    # impl = "dummy" if args.dummy_backbone else "vjepa"
+    # model_b = VJEPAFeatureBackbone(impl=impl, out_dim=cfg.model.get("backbone_out_dim", 1024)).to(device)
+    # if impl == "vjepa":
+    #     # until wired, this raises NotImplementedError
+    #     try:
+    #         _ = model_b(torch.zeros(1, 3, *cfg.data.get("img_size", [512, 512])).to(device))
+    #     except NotImplementedError as e:
+    #         print(str(e))
+    #         print("Falling back to dummy backbone. Use --dummy_backbone 1 for CI/quickstart.")
+    #         model_b = VJEPAFeatureBackbone(impl="dummy", out_dim=cfg.model.get("backbone_out_dim", 1024)).to(device)
+    
     impl = "dummy" if args.dummy_backbone else "vjepa"
-    model_b = VJEPAFeatureBackbone(impl=impl, out_dim=cfg.model.get("backbone_out_dim", 1024)).to(device)
-    if impl == "vjepa":
-        # until wired, this raises NotImplementedError
-        try:
-            _ = model_b(torch.zeros(1, 3, *cfg.data.get("img_size", [512, 512])).to(device))
-        except NotImplementedError as e:
-            print(str(e))
-            print("Falling back to dummy backbone. Use --dummy_backbone 1 for CI/quickstart.")
-            model_b = VJEPAFeatureBackbone(impl="dummy", out_dim=cfg.model.get("backbone_out_dim", 1024)).to(device)
+    model_b = VJEPAFeatureBackbone(
+        impl=impl,
+        out_dim=cfg.model.get("backbone_out_dim", 1024),
+        vjepa_ckpt=args.vjepa_ckpt,  # <— NEW: pass ckpt
+    ).to(device)
+
+    model_h = LinearFPNHead(
+        in_dim=cfg.model.get("backbone_out_dim", 1024),
+        fpn_dim=cfg.model.get("fpn_dim", 256),
+        num_classes=num_classes,
+    ).to(device)
 
     model_h = LinearFPNHead(
         in_dim=cfg.model.get("backbone_out_dim", 1024),

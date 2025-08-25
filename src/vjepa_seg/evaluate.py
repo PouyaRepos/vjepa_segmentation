@@ -15,6 +15,8 @@ def main():
     ap.add_argument("--config", required=True)
     ap.add_argument("--dummy_backbone", type=int, default=1)
     ap.add_argument("--ckpt", default="ckpts/head_linear_fpn_best.pt")
+    ap.add_argument("--vjepa_ckpt", type=str, default=None)
+
     args = ap.parse_args()
 
     cfg = load_cfg(args.config)
@@ -29,8 +31,14 @@ def main():
     )
     val_loader = DataLoader(val_set, batch_size=cfg.train.get("batch_size", 8), shuffle=False, num_workers=4)
 
+    # impl = "dummy" if args.dummy_backbone else "vjepa"
+    # model_b = VJEPAFeatureBackbone(impl=impl, out_dim=cfg.model.get("backbone_out_dim", 1024)).to(device)
     impl = "dummy" if args.dummy_backbone else "vjepa"
-    model_b = VJEPAFeatureBackbone(impl=impl, out_dim=cfg.model.get("backbone_out_dim", 1024)).to(device)
+    model_b = VJEPAFeatureBackbone(
+        impl=impl,
+        out_dim=cfg.model.get("backbone_out_dim", 1024),
+        vjepa_ckpt=args.vjepa_ckpt,
+    ).to(device)
     model_h = LinearFPNHead(
         in_dim=cfg.model.get("backbone_out_dim", 1024),
         fpn_dim=cfg.model.get("fpn_dim", 256),
