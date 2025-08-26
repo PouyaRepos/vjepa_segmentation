@@ -247,3 +247,23 @@ logs/*
 *.npz
 *.npy
 EOF
+
+
+# checkpoints / big artifacts
+ckpts/
+*.pt
+*.pth
+*.npz
+*.npy
+
+# media & zips
+*.mp4
+*.mov
+*.avi
+*.mkv
+*.zip
+*.tar.gz
+
+# local data
+data/
+datasets/

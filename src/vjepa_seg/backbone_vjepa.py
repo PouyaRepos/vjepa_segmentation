@@ -75,6 +75,14 @@ class VJEPAFeatureBackbone(nn.Module):
                     in_chans=3, embed_dim=out_dim, depth=24, num_heads=16, mlp_ratio=4.0,
                     qkv_bias=True, drop_rate=0.0, attn_drop_rate=0.0, norm_layer=nn.LayerNorm,
                 )
+            if hasattr(self.vit, "num_frames"):
+                try:
+                    prev = int(self.vit.num_frames)
+                except Exception:
+                    prev = None
+                self.vit.num_frames = 1
+                if prev and prev != 1:
+                    print(f"[VJEPA] Overriding num_frames {prev} -> 1 to avoid large attention buffers.")
 
             # 2) Load your checkpoint with tolerant key-matching
             state = torch.load(vjepa_ckpt, map_location="cpu")
@@ -122,44 +130,39 @@ class VJEPAFeatureBackbone(nn.Module):
         B, _, H, W = x.shape
         Ht, Wt = H // self.patch_size, W // self.patch_size
 
-        # If the model expects video dims (B,C,T,H,W), tile single frame across T
-        num_frames = int(getattr(self.backbone, "num_frames", 1))
-        x_in = x.unsqueeze(2).repeat(1, 1, num_frames, 1, 1) if num_frames > 1 else x
+        # Always pass T=1 to the video model
+        x_in = x.unsqueeze(2)  # (B, C, 1, H, W)
+        if getattr(self.backbone, "tubelet_size", 2) == 2 and x_in.shape[2] == 1:
+            x_in = x_in.repeat(1, 1, 2, 1, 1)  # (B, C, 2, H, W)
 
-        # Prefer forward_features if present
-        tokens = self.backbone.forward_features(x_in) if hasattr(self.backbone, "forward_features") else self.backbone(x_in)
+        # Prefer forward_features if available
+        if hasattr(self.backbone, "forward_features"):
+            tokens = self.backbone.forward_features(x_in)
+        else:
+            tokens = self.backbone(x_in)
 
-        # Case A: tokens are B x N x C (flattened [T * Ht * Wt] [+ CLS])
+        # Case A: B x N x C tokens (flattened space [+ optional CLS])
         if tokens.dim() == 3:
             B, N, C = tokens.shape
             n_per_frame = Ht * Wt
-
-            # Drop a CLS token if present (either once or per-frame)
-            # If one CLS total: N % n_per_frame == 1
-            # If CLS per-frame: (N % n_per_frame) == T  (rare); we’ll try the simple case first.
+            # Drop single CLS if present
             if N % n_per_frame == 1:
                 tokens = tokens[:, 1:, :]
                 N -= 1
-
-            # Infer T and validate
             if N % n_per_frame != 0:
                 raise RuntimeError(f"Unexpected token length N={N}, not divisible by Ht*Wt={n_per_frame}")
-
+            # T == 1 now (we forced it), but keep robust:
             T = max(1, N // n_per_frame)
-
-            # Reshape to (B, T, Ht*Wt, C), mean over time, then to grid
-            tokens = tokens.view(B, T, n_per_frame, C)        # B x T x (Ht*Wt) x C
-            tokens = tokens.mean(dim=1)                       # B x (Ht*Wt) x C
-            feats = tokens.transpose(1, 2).contiguous().view(B, C, Ht, Wt)  # B x C x Ht x Wt
+            tokens = tokens.view(B, T, n_per_frame, C).mean(dim=1)  # time-mean (no-op when T=1)
+            feats = tokens.transpose(1, 2).contiguous().view(B, C, Ht, Wt)
             return feats
 
-        # Case B: tokens already spatial
+        # Case B: already spatial B x C x h x w
         if tokens.dim() == 4:
-            return tokens  # assume B x C x Ht x Wt
+            return tokens
 
-        # Case C: tokens are B x C x T x Ht x Wt -> mean over time
+        # Case C: B x C x T x h x w -> mean over time
         if tokens.dim() == 5:
-            # B x C x T x h x w -> B x C x h x w
             return tokens.mean(dim=2)
 
         raise RuntimeError(f"Unexpected V-JEPA feature shape: {tokens.shape}")

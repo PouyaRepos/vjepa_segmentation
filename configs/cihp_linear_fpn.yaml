@@ -1,5 +1,5 @@
 data:
-  root: ./data/cihp_dummy
+  root: /Users/pouyaabbasi/Documents/Projects/datasets/cihp
   num_classes: 6
   img_size: [256, 256]
   aug:
@@ -11,7 +11,7 @@ model:
   fpn_dim: 128
 
 train:
-  epochs: 1
+  epochs: 2
   batch_size: 1
   lr: 0.0003
   weight_decay: 0.0001
