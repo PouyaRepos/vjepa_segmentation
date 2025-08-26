@@ -2,6 +2,7 @@
 
 Fast human-parsing (bg, hair, face, torso, arms, legs) using **frozen V-JEPA features** and a **light FPN head**.
 Train supervised on CIHP (remapped to 6 classes).
+Due to computation limit, it is 500(train)/100(val) images only.
 Inference works on images and videos; optional EMA smoothing for minimal temporal flicker.
 
 
