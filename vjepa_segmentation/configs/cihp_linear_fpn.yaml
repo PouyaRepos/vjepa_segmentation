@@ -1,0 +1,23 @@
+data:
+  root: /Users/pouyaabbasi/Documents/Projects/datasets/cihp
+  num_classes: 6
+  img_size: [256, 256]
+  aug:
+    flip: true
+    color_jitter: 0.0
+
+model:
+  backbone_out_dim: 1024
+  fpn_dim: 128
+
+train:
+  epochs: 2
+  batch_size: 1
+  lr: 0.0003
+  weight_decay: 0.0001
+
+eval:
+  metric: miou
+
+infer:
+  ema_logits_alpha: 0.6
