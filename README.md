@@ -5,11 +5,8 @@ Train supervised on CIHP (remapped to 6 classes).
 Due to computation limit, it is 500(train)/100(val) images only.
 Inference works on images and videos; optional EMA smoothing for minimal temporal flicker.
 
-Remove the triple backticks. It should be **just**:
-
-```markdown
+> ```markdown
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/PouyaRepos/vjepa_segmentation/blob/feature/vjepa2-hub/colab_vjepa_seg_demo.ipynb?t=20250828)
-
 ```
 
 ## See Demo (results)
