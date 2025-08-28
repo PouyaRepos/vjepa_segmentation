@@ -5,6 +5,10 @@ Train supervised on CIHP (remapped to 6 classes).
 Due to computation limit, it is 500(train)/100(val) images only.
 Inference works on images and videos; optional EMA smoothing for minimal temporal flicker.
 
+> ```markdown
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](
+  https://colab.research.google.com/github/YOUR_USERNAME/vjepa_segmentation/blob/main/notebooks/01_colab_demo.ipynb)
+```
 
 ## See Demo (results)
 **Image overlay**
@@ -38,15 +42,15 @@ python -m vjepa_seg.inference \
 ```
 
 ### Real inference (needs weights)
-
 Place your local checkpoints (not in git):
 
-ckpts/vjepa2_vitl_256.pt
-ckpts/head_linear_fpn_best.pt
+    ckpts/vjepa2_vitl_256.pt\
+    ckpts/head_linear_fpn_best.pt
 
 
 
 ### Run on the sample image:
+
 ```bash
 python -m vjepa_seg.inference \
   --config configs/cihp_linear_fpn.yaml \
@@ -68,3 +72,5 @@ python -m vjepa_seg.inference \
   --vjepa_ckpt ckpts/vjepa2_vitl_256.pt
 ```
 > Note: `backbone_vjepa.py` exposes a clean interface for V-JEPA features. If you don't have V-JEPA weights handy, set `--dummy_backbone 1` to use a random frozen backbone for smoke tests.
+
+
