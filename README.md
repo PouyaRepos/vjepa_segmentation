@@ -7,7 +7,7 @@ Inference works on images and videos; optional EMA smoothing for minimal tempora
 
 > ```markdown
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](
-  https://colab.research.google.com/github/PouyaRepos/vjepa_segmentation/blob/main/notebooks/01_colab_demo.ipynb)
+  https://colab.research.google.com/github/PouyaRepos/vjepa_segmentation/blob/main/notebooks/colab_vjepa_seg_demo.ipynb)
 ```
 
 ## See Demo (results)
