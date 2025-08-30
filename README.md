@@ -1,5 +1,8 @@
 # vjepa_segmentation
 
+This code is licensed under a custom non-commercial license.
+See [LICENSE](./LICENSE) for details. Commercial use is prohibited.
+
 Fast human-parsing (bg, hair, face, torso, arms, legs) using **frozen V-JEPA features** and a **light FPN head**.
 Train supervised on CIHP (remapped to 6 classes).
 Due to computation limit, it is 500(train)/100(val) images only.
